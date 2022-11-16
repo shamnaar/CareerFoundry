@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name:  rubyrails-service
+spec:
+  selector:
+    app:  rails
+    env: dev
+  type:  LoadBalancer
+  ports:
+  - port:  3000
+    protocol: TCP
+    targetPort: 3000

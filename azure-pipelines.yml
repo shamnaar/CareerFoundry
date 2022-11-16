@@ -1,0 +1,128 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger: none
+parameters:
+- name: terraform
+  type: string
+  default: apply
+  values: 
+   - apply
+   - destroy
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  az_region: japaneast
+  resource_group_name: aks-rg
+  storage_account: aksterraformsta
+  sa_container_name: tfstate
+  tfstateFile: terraform.tfstate 
+  containerregistry: sarcontainerregistry
+  clustername: dev-aks
+  serviceconnection: 'aksconnection'
+
+stages:
+- ${{ if eq(parameters.terraform, 'apply') }}:
+  - stage: "TerraformApply"
+    jobs:
+      - job: Apply
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: '$(serviceconnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az storage account create --resource-group $(resource_group_name) --name "$(storage_account)" --sku Standard_LRS --encryption-services blob
+                az storage container create --name $(sa_container_name) --account-name "$(storage_account)" --auth-mode login
+                az acr create --resource-group $(resource_group_name) --name $(containerregistry) --sku Basic
+
+          - task: TerraformInstaller@0
+            inputs:
+              terraformVersion: 'latest'
+          - task: TerraformTaskV3@3
+            displayName: terraform init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              backendServiceArm: '$(serviceconnection)'
+              backendAzureRmResourceGroupName: '$(resource_group_name)'
+              backendAzureRmStorageAccountName: '$(storage_account)'
+              backendAzureRmContainerName: '$(sa_container_name)'
+              backendAzureRmKey: '$(tfstateFile)'
+          - task: TerraformTaskV3@3
+            displayName: terraform plan
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              commandOptions: '-var resource_group=$(resource_group_name) -var clustername=$(clustername)' 
+              environmentServiceNameAzureRM: 'DevSubscription(aa14efc-xxxx-xxxx-xx-xxxx)'
+          - task: TerraformTaskV3@3
+            displayName: terraform apply
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              commandOptions: '-var resource_group=$(resource_group_name) -var clustername=$(clustername)'
+              environmentServiceNameAzureRM: '$(serviceconnection)'
+          
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: '$(serviceconnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr update -n $(containerregistry) --admin-enabled true
+                az aks update -n $(clustername) -g $(resource_group_name) --attach-acr $(containerregistry)
+
+- ${{ if eq(parameters.terraform, 'destroy') }}:
+  - stage: "TerraformDestroy"
+    jobs:
+      - job: Destroy
+        steps:
+          - task: TerraformInstaller@0
+            inputs:
+              terraformVersion: 'latest'
+          - task: TerraformTaskV3@3
+            displayName: terraform init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              backendServiceArm: '$(serviceconnection)'
+              backendAzureRmResourceGroupName: '$(resource_group_name)'
+              backendAzureRmStorageAccountName: '$(storage_account)'
+              backendAzureRmContainerName: '$(sa_container_name)'
+              backendAzureRmKey: '$(tfstateFile)'
+          - task: TerraformTaskV3@3
+            displayName: terraform plan destroy
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              commandOptions: '-var resource_group=$(resource_group_name) -var clustername=$(clustername) -destroy -out tfplan'
+              environmentServiceNameAzureRM: '$(serviceconnection)'
+          
+          - task: TerraformTaskV3@3
+            displayName: terraform destroy
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              commandOptions: '-destroy -auto-approve tfplan'
+              environmentServiceNameAzureRM: '$(serviceconnection)'
+          
+          - task: AzureCLI@2
+            displayName: cleanup resources
+            inputs:
+              azureSubscription: '$(serviceconnection)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az group delete -n $(resource_group_name) --yes
