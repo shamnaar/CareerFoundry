@@ -20,7 +20,11 @@ Azure DevOps pipeline with Terraform is used for infrastructure provisioning. Wi
 
 ## Architecture
 
+**Infrastructure Workflow**
+
 !["Infrastructure"](assets/azure-terrafrom.jpg?raw=true)
+
+**Deployment Workflow**
 
 !["Deployment Architecture"](assets/deployment-archi.jpg?raw=true)
 
