@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rails-deployment
+  labels:
+    env: dev
+    app: rails
+spec:
+  selector:
+    matchLabels:
+      env: dev
+      app: rails
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        env: dev
+        app: rails
+    spec:
+      volumes:
+      - name: database-data
+        emptyDir: {}
+      containers:
+      - name: rails
+        image: "testcontainerregistry.azurecr.io/practicum.rails.api:latest"
+        imagePullPolicy: Always
+        env:
+        - name: DATABASE_HOST
+          value: "127.0.0.1"
+        - name: DATABASE_PASSWORD
+          value: "postgres"
+        - name: DATABASE_USER
+          value: "postgres"
+        ports:
+        - containerPort: 3000
+      - name: rails-db
+        image: "postgres"
+        imagePullPolicy: Always
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        volumeMounts:
+        - name: database-data
+          mountPath: /var/lib/postgresql/data
