@@ -16,7 +16,7 @@
 
 **IaaC:**
 
-Azure DevOps pipeline with Terraform is used for infrastructure provisioning. With this pipeline Resource group, storage account with container, ACR and AKS cluster attached to the ACR will be created.
+Azure DevOps pipeline with Terraform is used for infrastructure provisioning and deprovisioning. With this pipeline Resource group, storage account with container(blob), ACR and AKS cluster attached to the ACR will be created.
 
 ## Architecture
 
@@ -73,6 +73,7 @@ Below permissions are required for service principal:
  4. Ensure to change your service connections in the pipeline
  5. Click run. Select the parameter 'apply', then run
  6. After the job is completed, verify the resources are created in Azure.
+ 7. If you want to destroy the created resources, choose the parameter option 'destroy' while running the pipeline (optional)
 
 ## Steps to deploy application on AKS
 
@@ -92,6 +93,7 @@ Below permissions are required for service principal:
 5. Go to the AKS cluster in Azure, check workloads and verify the pods are running. Then go to 'services and ingresses', check services you will see an external ip in the service.
 
 6. Check in browser `http://<external-ip>:3000`
+
 
 ### Improvements:
 Needs some optimization in the 3rd step of deploy application on AKS. Using bash script/powershell can do string manipulations on deployment.yaml for changing the image repo path.
